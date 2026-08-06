@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/big-pickle",
+  "permission": {
+    "*": "deny",
+    "bigtech-market*": "allow"
+  },
+  "mcp": {
+    "bigtech-market": {
+      "type": "local",
+      "command": ["backend/node_modules/.bin/tsx", "backend/src/mcp/market-mcp-server.ts"],
+      "enabled": true
+    }
+  }
+}
