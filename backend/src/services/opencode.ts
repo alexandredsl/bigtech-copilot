@@ -1,14 +1,15 @@
 import OpenAI from "openai";
 import { getHistory, getOverview, getQuote } from "./market";
 
-// NVIDIA NIM expõe endpoint OpenAI-compatible — reusa o SDK oficial da OpenAI
-// trocando apenas baseURL + key.
-const nim = new OpenAI({
-  apiKey: process.env.NVIDIA_NIM_API_KEY,
-  baseURL: "https://integrate.api.nvidia.com/v1",
+// OpenCode Zen expõe endpoint OpenAI-compatible (deepseek-v4-flash-free, sem
+// limite de tool calling que a NIM impôs) — reusa o SDK oficial da OpenAI
+// trocando apenas baseURL + key. Auth: opencode.ai/auth (grátis, sem cartão).
+const zen = new OpenAI({
+  apiKey: process.env.OPENCODE_API_KEY,
+  baseURL: "https://opencode.ai/zen/v1",
 });
 
-export const MODEL = "openai/gpt-oss-20b";
+export const MODEL = "deepseek-v4-flash-free";
 
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -84,7 +85,7 @@ export async function* streamChat(userMessage: string): AsyncGenerator<ChatEvent
   ];
 
   for (let iteration = 0; iteration < 4; iteration++) {
-    const completion = await nim.chat.completions.create({
+    const completion = await zen.chat.completions.create({
       model: MODEL,
       messages,
       tools,

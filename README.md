@@ -11,7 +11,7 @@ Um dashboard financeiro não pode "chutar" um preço de ação. A alternativa ma
 - **Frontend:** Angular v18 + PrimeNG + Chart.js/ng2-charts
 - **Backend:** Node/Express + TypeScript
 - **Dado de mercado:** [`yahoo-finance2`](https://www.npmjs.com/package/yahoo-finance2) (sem key), cache in-memory de 10min por endpoint para evitar rate-limit
-- **LLM:** [NVIDIA NIM](https://build.nvidia.com/) — `openai/gpt-oss-20b`, endpoint OpenAI-compatible, tool calling nativo
+- **LLM:** [OpenCode Zen](https://opencode.ai/docs/zen) — `deepseek-v4-flash-free`, endpoint OpenAI-compatible (`/zen/v1/chat/completions`), tool calling nativo, sem limite de requisições que a NVIDIA NIM impôs
 
 ## Arquitetura
 
@@ -21,20 +21,20 @@ Frontend (Angular)  ──HTTP──▶  Backend (Express)
                                  ├─ GET  /api/stocks/:ticker/history
                                  ├─ GET  /api/stocks/:ticker/overview
                                  └─ POST /api/chat (SSE)
-                                       └─ NVIDIA NIM (tool_choice=auto)
+                                       └─ OpenCode Zen (tool_choice=auto)
                                              ├─ getQuote → /quote
                                              ├─ getHistory → /history
                                              └─ getOverview → /overview
 ```
 
-A key da NIM nunca chega ao browser — todo o tool-calling roda no backend, o frontend só consome o stream SSE de eventos (`tool_call`, `delta`, `done`).
+A key do OpenCode Zen nunca chega ao browser — todo o tool-calling roda no backend, o frontend só consome o stream SSE de eventos (`tool_call`, `delta`, `done`).
 
 ## Rodando localmente
 
 ```bash
 # backend
 cd backend
-cp .env.example .env   # preencha NVIDIA_NIM_API_KEY
+cp .env.example .env   # preencha OPENCODE_API_KEY (opencode.ai/auth, grátis)
 npm install
 npm run dev             # http://localhost:3000
 
@@ -47,7 +47,7 @@ npm start                # http://localhost:4200, proxy /api → :3000
 ## Deploy (Docker)
 
 ```bash
-cp .env.example .env   # preencha NVIDIA_NIM_API_KEY
+cp .env.example .env   # preencha OPENCODE_API_KEY
 docker compose up -d --build
 ```
 

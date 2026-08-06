@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { streamChat } from "../services/nim";
+import { streamChat } from "../services/opencode";
 
 export const chatRouter = Router();
 
