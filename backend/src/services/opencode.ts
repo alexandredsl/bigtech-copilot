@@ -87,7 +87,18 @@ interface OpencodeTextPart {
 
 interface OpencodeEvent {
   type: string;
+  sessionID?: string;
   part?: OpencodeToolPart | OpencodeTextPart;
+}
+
+interface OpencodeMessagePart {
+  type: string;
+  text?: string;
+}
+
+interface OpencodeMessage {
+  info: { finish?: string };
+  parts: OpencodeMessagePart[];
 }
 
 // Sem system prompt dedicado (diferente do SDK antigo), o agente "build"
@@ -105,6 +116,39 @@ interface RunResult {
   events: ChatEvent[];
   leaked: boolean;
   error: (Error & NodeJS.ErrnoException) | null;
+}
+
+// Achado 2026-08-06: `opencode run --attach` sai (exit 0) assim que o
+// próximo step (pós tool-call) começa no servidor, sem esperar a resposta
+// de texto terminar de gerar — o stdout do processo local fecha antes do
+// evento "text" chegar, mesmo a mensagem completando com sucesso no
+// `opencode serve` segundos depois (confirmado via GET /session/:id/message).
+// Fallback: se o processo fechou com tool_call mas zero texto, consulta a
+// API HTTP do servidor persistente até a última mensagem assistente
+// terminar (finish !== undefined), em vez de confiar no exit do child.
+const POLL_TIMEOUT_MS = 20_000;
+const POLL_INTERVAL_MS = 500;
+
+async function pollSessionForText(sessionID: string): Promise<string[]> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    try {
+      const res = await fetch(`${SERVER_URL}/session/${sessionID}/message`);
+      if (!res.ok) continue;
+      const messages = (await res.json()) as OpencodeMessage[];
+      const last = messages[messages.length - 1];
+      if (!last || last.info.finish === undefined) continue;
+      const texts = last.parts.filter((p) => p.type === "text" && p.text).map((p) => p.text as string);
+      if (texts.length > 0) return texts;
+      // Mensagem terminou (finish presente) mas sem parte de texto —
+      // não adianta continuar tentando essa mensagem específica.
+      return [];
+    } catch {
+      // Servidor pode estar ocupado escrevendo — tenta de novo até o deadline.
+    }
+  }
+  return [];
 }
 
 // Uma execução completa do opencode CLI, com todos os eventos coletados
@@ -132,6 +176,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
     const rl = createInterface({ input: child.stdout });
     const events: ChatEvent[] = [];
     let leaked = false;
+    let sessionID: string | undefined;
 
     rl.on("line", (line) => {
       if (!line.trim()) return;
@@ -141,6 +186,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
       } catch {
         return;
       }
+      if (parsed.sessionID) sessionID = parsed.sessionID;
       if (parsed.type === "tool_use" && parsed.part && "tool" in parsed.part) {
         const toolPart = parsed.part as OpencodeToolPart;
         const shortName = toolPart.tool.replace(/^bigtech-market_/, "");
@@ -162,7 +208,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
       resolvePromise({ events, leaked, error: err as Error & NodeJS.ErrnoException });
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       clearTimeout(timeout);
       const error =
         code !== 0 ? (new Error(stderr.trim() || `opencode run saiu com código ${code}`) as Error & NodeJS.ErrnoException) : null;
@@ -170,7 +216,20 @@ async function runOnce(prompt: string): Promise<RunResult> {
       // tempo pro modelo enxergar (race condition, ver comentário acima) —
       // trata igual a leak: descarta a tentativa e re-tenta.
       const hasToolCall = events.some((e) => e.type === "tool_call");
+      const hasDelta = events.some((e) => e.type === "delta");
       const refused = !hasToolCall && events.some((e) => e.type === "delta" && REFUSAL_PATTERN.test(e.data));
+
+      // Processo fechou com tool_call mas sem texto: run --attach saiu cedo
+      // demais (ver comentário em pollSessionForText). Busca a resposta que
+      // continuou terminando de gerar no servidor antes de desistir.
+      if (!error && hasToolCall && !hasDelta && sessionID) {
+        const texts = await pollSessionForText(sessionID);
+        for (const text of texts) {
+          if (LEAK_PATTERN.test(text)) leaked = true;
+          events.push({ type: "delta", data: text });
+        }
+      }
+
       resolvePromise({ events, leaked: leaked || refused, error });
     });
   });
