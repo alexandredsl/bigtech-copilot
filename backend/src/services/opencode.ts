@@ -38,40 +38,60 @@ const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 // request seguinte via --attach. Mantém o MCP local sempre conectado.
 let serverReady: Promise<void> | null = null;
 
+// Alguém já responde na porta? (sobra de um run anterior do backend, ou serve
+// externo) — reusa em vez de spawnar um segundo processo que morreria com
+// EADDRINUSE sem nunca imprimir "listening on".
+async function probeExistingServer(): Promise<boolean> {
+  try {
+    const res = await fetch(`${SERVER_URL}/app`, { signal: AbortSignal.timeout(2_000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 function ensureServer(): Promise<void> {
   if (serverReady) return serverReady;
-  serverReady = new Promise((resolvePromise, rejectPromise) => {
-    const server = spawn(
-      "opencode",
-      ["serve", "--port", String(SERVER_PORT), "--hostname", "127.0.0.1"],
-      { cwd: PROJECT_ROOT, stdio: ["ignore", "pipe", "pipe"], detached: false },
-    );
-    const timeout = setTimeout(() => {
-      rejectPromise(new Error("opencode serve não subiu a tempo"));
-    }, 15_000);
+  serverReady = (async () => {
+    if (await probeExistingServer()) return;
+    await new Promise<void>((resolvePromise, rejectPromise) => {
+      const server = spawn(
+        "opencode",
+        ["serve", "--port", String(SERVER_PORT), "--hostname", "127.0.0.1"],
+        { cwd: PROJECT_ROOT, stdio: ["ignore", "pipe", "pipe"], detached: false },
+      );
+      const timeout = setTimeout(() => {
+        // Reset ANTES de rejeitar: sem isso a promise rejeitada fica cacheada
+        // pra sempre e todo chat seguinte falha, mesmo o serve terminando de
+        // subir segundos depois (bug real visto 2026-08-06 em cold start).
+        serverReady = null;
+        rejectPromise(new Error("opencode serve não subiu a tempo"));
+      }, 30_000);
 
-    const onLine = (chunk: Buffer) => {
-      if (/listening on/i.test(chunk.toString())) {
+      const onLine = (chunk: Buffer) => {
+        if (/listening on/i.test(chunk.toString())) {
+          clearTimeout(timeout);
+          server.stdout.off("data", onLine);
+          resolvePromise();
+        }
+      };
+      server.stdout.on("data", onLine);
+      server.stderr.on("data", onLine);
+
+      server.on("error", (err) => {
         clearTimeout(timeout);
-        server.stdout.off("data", onLine);
-        resolvePromise();
-      }
-    };
-    server.stdout.on("data", onLine);
-    server.stderr.on("data", onLine);
-
-    server.on("error", (err) => {
-      clearTimeout(timeout);
-      rejectPromise(err);
+        serverReady = null;
+        rejectPromise(err);
+      });
+      server.on("exit", () => {
+        // Se o server persistente morrer, próxima chamada sobe outro.
+        serverReady = null;
+      });
+      // Não mata `server` ao sair do request — fica vivo até o processo
+      // backend inteiro morrer (unref pra não segurar o event loop sozinho).
+      server.unref();
     });
-    server.on("exit", () => {
-      // Se o server persistente morrer, próxima chamada sobe outro.
-      serverReady = null;
-    });
-    // Não mata `server` ao sair do request — fica vivo até o processo
-    // backend inteiro morrer (unref pra não segurar o event loop sozinho).
-    server.unref();
-  });
+  })();
   return serverReady;
 }
 

@@ -1,5 +1,5 @@
 main {
-  max-width: 1000px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
   display: flex;
@@ -19,13 +19,20 @@ header {
   }
 }
 
-.cards-row,
-.charts-row {
+.cards-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
 
-  @media (max-width: 720px) {
-    grid-template-columns: 1fr;
-  }
+.chart-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chart-controls {
+  display: flex;
+  justify-content: flex-start;
+  overflow-x: auto;
 }

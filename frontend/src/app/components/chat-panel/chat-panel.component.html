@@ -12,7 +12,16 @@
             }
           </div>
         }
-        <p>{{ turn.text || (turn.role === 'assistant' ? '…' : '') }}</p>
+        @if (turn.role === 'assistant' && turn.pending) {
+          <div class="pending">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="stage">{{ stage }}… {{ elapsedSeconds }}s</span>
+          </div>
+        } @else if (turn.role === 'assistant') {
+          <div class="md-body" [innerHTML]="turn.text | markdown"></div>
+        } @else {
+          <p>{{ turn.text }}</p>
+        }
       </div>
     }
   </div>
@@ -22,7 +31,7 @@
       pInputText
       [(ngModel)]="input"
       (keydown.enter)="send()"
-      placeholder="Ex: qual o P/E da Apple hoje?"
+      placeholder="Ex: qual o P/E da Nvidia hoje?"
       [disabled]="sending"
     />
     <p-button label="Enviar" (onClick)="send()" [loading]="sending" [disabled]="!input.trim()" />

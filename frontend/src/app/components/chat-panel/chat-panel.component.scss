@@ -16,7 +16,7 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 320px;
+  max-height: 420px;
   overflow-y: auto;
 }
 
@@ -34,6 +34,115 @@ h4 {
     background: #16233a;
     align-self: flex-end;
     max-width: 80%;
+  }
+}
+
+.md-body {
+  line-height: 1.55;
+}
+
+// ::ng-deep necessário: conteúdo chega via [innerHTML] (markdown renderizado),
+// então os elementos não carregam o atributo de scoping da view encapsulation
+// e seletores escopados normais nunca casariam com eles.
+.md-body ::ng-deep {
+  p {
+    margin: 0 0 0.5rem 0;
+    white-space: normal;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ul,
+  ol {
+    margin: 0.25rem 0 0.5rem;
+    padding-left: 1.25rem;
+  }
+
+  li {
+    margin-bottom: 0.2rem;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0.6rem 0 0.35rem;
+    font-size: 1rem;
+  }
+
+  code {
+    background: #23262e;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.85em;
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    width: 100%;
+    font-size: 0.88rem;
+  }
+
+  th,
+  td {
+    border: 1px solid #2f333b;
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+  }
+
+  th {
+    background: #23262e;
+    font-weight: 600;
+  }
+
+  tr:nth-child(even) td {
+    background: #1e2128;
+  }
+}
+
+.pending {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #9aa0a6;
+  font-size: 0.85rem;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 0.25rem;
+
+  i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #60a5fa;
+    animation: pulse 1.2s infinite ease-in-out;
+
+    &:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+  }
+}
+
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

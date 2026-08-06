@@ -1,7 +1,7 @@
 <main>
   <header>
     <h1>bigtech-copilot</h1>
-    <p class="muted">Dashboard AAPL / MSFT com copiloto de IA ancorado em dado real (NVIDIA NIM function calling)</p>
+    <p class="muted">Dashboard de big techs com copiloto de IA ancorado em dado real via function calling (MCP + OpenCode)</p>
   </header>
 
   <section class="cards-row">
@@ -10,10 +10,17 @@
     }
   </section>
 
-  <section class="charts-row">
-    @for (t of tickers; track t) {
-      <app-price-chart [ticker]="t" />
-    }
+  <section class="chart-section">
+    <div class="chart-controls">
+      <p-selectButton
+        [options]="tickerOptions"
+        [(ngModel)]="chartTicker"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+      />
+    </div>
+    <app-price-chart [ticker]="chartTicker" />
   </section>
 
   <section class="chat-row">

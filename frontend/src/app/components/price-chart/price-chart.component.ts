@@ -1,10 +1,20 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { CardModule } from 'primeng/card';
 import { MarketService } from '../../services/market.service';
 import { Ticker } from '../../models/stock.model';
+
+const TICKER_COLORS: Record<Ticker, string> = {
+  AAPL: '#60a5fa',
+  MSFT: '#34d399',
+  GOOGL: '#f87171',
+  AMZN: '#fbbf24',
+  META: '#818cf8',
+  NVDA: '#4ade80',
+  TSLA: '#f472b6'
+};
 
 @Component({
   selector: 'app-price-chart',
@@ -13,7 +23,7 @@ import { Ticker } from '../../models/stock.model';
   templateUrl: './price-chart.component.html',
   styleUrl: './price-chart.component.scss'
 })
-export class PriceChartComponent implements OnInit {
+export class PriceChartComponent implements OnChanges {
   @Input({ required: true }) ticker!: Ticker;
 
   loading = true;
@@ -32,7 +42,15 @@ export class PriceChartComponent implements OnInit {
 
   constructor(private market: MarketService) {}
 
-  ngOnInit(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['ticker']) {
+      this.load();
+    }
+  }
+
+  private load(): void {
+    this.loading = true;
+    this.error = null;
     this.market.getHistory(this.ticker, '1y').subscribe({
       next: (history) => {
         this.chartData = {
@@ -43,7 +61,7 @@ export class PriceChartComponent implements OnInit {
             {
               data: history.points.map((p) => p.close ?? 0),
               label: this.ticker,
-              borderColor: this.ticker === 'AAPL' ? '#60a5fa' : '#34d399',
+              borderColor: TICKER_COLORS[this.ticker] ?? '#60a5fa',
               backgroundColor: 'transparent',
               tension: 0.25,
               pointRadius: 0

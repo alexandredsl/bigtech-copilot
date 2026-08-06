@@ -1,4 +1,4 @@
-export type Ticker = 'AAPL' | 'MSFT';
+export type Ticker = 'AAPL' | 'MSFT' | 'GOOGL' | 'AMZN' | 'META' | 'NVDA' | 'TSLA';
 
 export interface Quote {
   symbol: Ticker;
