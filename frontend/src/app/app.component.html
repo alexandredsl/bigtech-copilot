@@ -1,0 +1,22 @@
+<main>
+  <header>
+    <h1>bigtech-copilot</h1>
+    <p class="muted">Dashboard AAPL / MSFT com copiloto de IA ancorado em dado real (NVIDIA NIM function calling)</p>
+  </header>
+
+  <section class="cards-row">
+    @for (t of tickers; track t) {
+      <app-stock-card [ticker]="t" />
+    }
+  </section>
+
+  <section class="charts-row">
+    @for (t of tickers; track t) {
+      <app-price-chart [ticker]="t" />
+    }
+  </section>
+
+  <section class="chat-row">
+    <app-chat-panel />
+  </section>
+</main>

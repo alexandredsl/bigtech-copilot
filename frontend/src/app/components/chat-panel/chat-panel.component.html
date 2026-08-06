@@ -1,0 +1,30 @@
+<p-card styleClass="chat-card">
+  <h4>Pergunte sobre AAPL / MSFT</h4>
+  <span class="muted">Respostas ancoradas em dado real via function calling — não alucinado.</span>
+
+  <div class="turns">
+    @for (turn of turns; track $index) {
+      <div class="turn" [class.user]="turn.role === 'user'">
+        @if (turn.toolCalls.length) {
+          <div class="tool-calls">
+            @for (call of turn.toolCalls; track call) {
+              <span class="tool-badge">⚙ {{ call }}</span>
+            }
+          </div>
+        }
+        <p>{{ turn.text || (turn.role === 'assistant' ? '…' : '') }}</p>
+      </div>
+    }
+  </div>
+
+  <div class="input-row">
+    <input
+      pInputText
+      [(ngModel)]="input"
+      (keydown.enter)="send()"
+      placeholder="Ex: qual o P/E da Apple hoje?"
+      [disabled]="sending"
+    />
+    <p-button label="Enviar" (onClick)="send()" [loading]="sending" [disabled]="!input.trim()" />
+  </div>
+</p-card>

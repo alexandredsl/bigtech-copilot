@@ -1,0 +1,10 @@
+services:
+  bigtech-copilot:
+    build: .
+    container_name: bigtech-copilot
+    restart: unless-stopped
+    ports:
+      - "8091:3000"
+    environment:
+      - NVIDIA_NIM_API_KEY=${NVIDIA_NIM_API_KEY}
+      - PORT=3000

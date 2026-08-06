@@ -1,0 +1,12 @@
+<p-card styleClass="chart-card">
+  <h4>{{ ticker }} — histórico 1 ano</h4>
+  @if (loading) {
+    <span class="muted">Carregando gráfico…</span>
+  } @else if (error) {
+    <span class="error">{{ error }}</span>
+  } @else {
+    <div class="chart-wrap">
+      <canvas baseChart [data]="chartData" [options]="chartOptions" type="line"></canvas>
+    </div>
+  }
+</p-card>

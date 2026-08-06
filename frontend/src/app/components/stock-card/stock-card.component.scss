@@ -1,0 +1,81 @@
+:host {
+  display: block;
+}
+
+::ng-deep .stock-card .p-card-body {
+  padding: 1.25rem;
+}
+
+::ng-deep .stock-card .p-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  h3 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+}
+
+.muted {
+  color: #9aa0a6;
+  font-size: 0.85rem;
+}
+
+.error {
+  color: #ef4444;
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #2a2d33;
+
+  &.up {
+    color: #22c55e;
+  }
+  &.down {
+    color: #ef4444;
+  }
+}
+
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+
+  .price {
+    font-size: 2rem;
+    font-weight: 600;
+  }
+
+  .change {
+    font-weight: 500;
+
+    &.up {
+      color: #22c55e;
+    }
+    &.down {
+      color: #ef4444;
+    }
+  }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+}
