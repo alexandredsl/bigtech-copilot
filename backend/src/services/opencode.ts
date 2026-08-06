@@ -11,14 +11,65 @@ import path from "node:path";
 // PROJECT_ROOT: opencode.json vive na raiz do projeto (sobe 3 níveis a partir
 // de dist/services ou src/services — mesma profundidade em dev e produção).
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
-// "opencode/big-pickle" (modelo anônimo/rotativo) e mesmo deepseek-v4-flash-free
-// ocasionalmente vazam tokens de tool-call crus (formato DSML não reconhecido
-// pelo parser do opencode) em vez de disparar um tool_use de verdade —
-// instabilidade do modelo grátis, não do nosso MCP. Mitigado com retry abaixo.
-const DEFAULT_MODEL = process.env.OPENCODE_MODEL || "opencode/deepseek-v4-flash-free";
+// "opencode/big-pickle" vaza tokens de tool-call crus (formato não
+// reconhecido pelo parser do opencode) com frequência alta — testado
+// 2026-08-06. Causa raiz real da instabilidade (não é escolha de modelo):
+// `opencode run` sozinho sobe sessão + MCP do zero a cada chamada; via
+// child_process.spawn a partir do Node, o MCP local (bigtech-market) às
+// vezes não termina de conectar antes do modelo listar tools disponíveis —
+// aí ele responde "não tenho acesso a essas ferramentas" em vez de chamar
+// de verdade. Fix real: sobe UM `opencode serve` persistente (MCP conecta
+// uma vez, fica quente) e cada `opencode run` usa `--attach` nele em vez de
+// sessão fresca. Testado: 5/5 limpo com --attach vs. falha quase total sem.
+const DEFAULT_MODEL = process.env.OPENCODE_MODEL || "opencode/mimo-v2.5-free";
 const RUN_TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 3;
-const LEAK_PATTERN = /｜｜|<\|.*tool_call|invoke name=/i;
+const LEAK_PATTERN = /｜｜|<\|.*tool_call|invoke name=|<tool_call>|<function=/i;
+const REFUSAL_PATTERN = /não tenho acesso|not available|tools? (disponíve|available)/i;
+const SERVER_PORT = Number(process.env.OPENCODE_SERVE_PORT || 4097);
+const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
+
+// Servidor `opencode serve` persistente pra vida inteira do processo backend —
+// spawnado uma vez (lazy, na primeira mensagem de chat) e reusado por todo
+// request seguinte via --attach. Mantém o MCP local sempre conectado.
+let serverReady: Promise<void> | null = null;
+
+function ensureServer(): Promise<void> {
+  if (serverReady) return serverReady;
+  serverReady = new Promise((resolvePromise, rejectPromise) => {
+    const server = spawn(
+      "opencode",
+      ["serve", "--port", String(SERVER_PORT), "--hostname", "127.0.0.1"],
+      { cwd: PROJECT_ROOT, stdio: ["ignore", "pipe", "pipe"], detached: false },
+    );
+    const timeout = setTimeout(() => {
+      rejectPromise(new Error("opencode serve não subiu a tempo"));
+    }, 15_000);
+
+    const onLine = (chunk: Buffer) => {
+      if (/listening on/i.test(chunk.toString())) {
+        clearTimeout(timeout);
+        server.stdout.off("data", onLine);
+        resolvePromise();
+      }
+    };
+    server.stdout.on("data", onLine);
+    server.stderr.on("data", onLine);
+
+    server.on("error", (err) => {
+      clearTimeout(timeout);
+      rejectPromise(err);
+    });
+    server.on("exit", () => {
+      // Se o server persistente morrer, próxima chamada sobe outro.
+      serverReady = null;
+    });
+    // Não mata `server` ao sair do request — fica vivo até o processo
+    // backend inteiro morrer (unref pra não segurar o event loop sozinho).
+    server.unref();
+  });
+  return serverReady;
+}
 
 export interface ChatEvent {
   type: "tool_call" | "delta" | "done" | "error";
@@ -59,11 +110,16 @@ interface RunResult {
 // Uma execução completa do opencode CLI, com todos os eventos coletados
 // (não emitidos ainda) pra permitir detectar vazamento e re-tentar antes
 // de expor qualquer coisa pro cliente.
-function runOnce(prompt: string): Promise<RunResult> {
+async function runOnce(prompt: string): Promise<RunResult> {
+  try {
+    await ensureServer();
+  } catch (err) {
+    return { events: [], leaked: false, error: err as Error & NodeJS.ErrnoException };
+  }
   return new Promise((resolvePromise) => {
     const child = spawn(
       "opencode",
-      ["run", prompt, "--format", "json", "--model", DEFAULT_MODEL],
+      ["run", prompt, "--format", "json", "--model", DEFAULT_MODEL, "--attach", SERVER_URL],
       { cwd: PROJECT_ROOT, stdio: ["ignore", "pipe", "pipe"] },
     );
 
@@ -110,7 +166,12 @@ function runOnce(prompt: string): Promise<RunResult> {
       clearTimeout(timeout);
       const error =
         code !== 0 ? (new Error(stderr.trim() || `opencode run saiu com código ${code}`) as Error & NodeJS.ErrnoException) : null;
-      resolvePromise({ events, leaked, error });
+      // Sem tool_call real e texto nega acesso à tool = MCP não conectou a
+      // tempo pro modelo enxergar (race condition, ver comentário acima) —
+      // trata igual a leak: descarta a tentativa e re-tenta.
+      const hasToolCall = events.some((e) => e.type === "tool_call");
+      const refused = !hasToolCall && events.some((e) => e.type === "delta" && REFUSAL_PATTERN.test(e.data));
+      resolvePromise({ events, leaked: leaked || refused, error });
     });
   });
 }
