@@ -9,7 +9,7 @@ interface ChartPoint {
 // v4 exporta a classe, não uma instância pronta.
 const yahooFinance = new YahooFinance();
 
-export const TICKERS = ["AAPL", "MSFT"] as const;
+export const TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"] as const;
 export type Ticker = (typeof TICKERS)[number];
 
 function assertTicker(ticker: string): asserts ticker is Ticker {

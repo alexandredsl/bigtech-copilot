@@ -14,7 +14,7 @@ const tickerSchema = z.enum(TICKERS);
 server.registerTool(
   "getQuote",
   {
-    description: "Preço atual e variação do dia de uma ação (AAPL ou MSFT).",
+    description: "Preço atual e variação do dia de uma ação big tech (AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA).",
     inputSchema: { ticker: tickerSchema },
   },
   async ({ ticker }) => {

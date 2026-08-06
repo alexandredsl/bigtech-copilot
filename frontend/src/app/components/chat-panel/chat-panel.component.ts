@@ -49,6 +49,9 @@ export class ChatPanelComponent {
       }
     } finally {
       this.sending = false;
+      if (!assistantTurn.text) {
+        assistantTurn.text = 'Sem resposta do modelo — tente de novo.';
+      }
     }
   }
 }

@@ -25,6 +25,10 @@ const DEFAULT_MODEL = process.env.OPENCODE_MODEL || "opencode/mimo-v2.5-free";
 const RUN_TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 3;
 const LEAK_PATTERN = /｜｜|<\|.*tool_call|invoke name=|<tool_call>|<function=/i;
+// mimo-v2.5 (Xiaomi) ocasionalmente troca de idioma no meio da resposta e
+// vaza caracteres chineses ("发生在", "催化剂") em texto português — visto em
+// teste real 2026-08-06. Trata como leak: descarta a tentativa e re-tenta.
+const CJK_PATTERN = /[㐀-鿿぀-ヿ]/;
 const REFUSAL_PATTERN = /não tenho acesso|not available|tools? (disponíve|available)/i;
 const SERVER_PORT = Number(process.env.OPENCODE_SERVE_PORT || 4097);
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
@@ -105,12 +109,26 @@ interface OpencodeMessage {
 // padrão do opencode tenta explorar o projeto com tools genéricas (bash/ls) —
 // negadas via opencode.json — e vaza a tentativa como texto. Prefixa a
 // mensagem com instrução explícita pra restringir ao escopo de mercado.
-const SYSTEM_PROMPT =
-  "Você é um assistente de análise de ações da Apple (AAPL) e Microsoft (MSFT). " +
-  "As únicas ferramentas disponíveis são bigtech-market_getQuote, bigtech-market_getHistory " +
-  "e bigtech-market_getOverview — use-as sempre que precisar de preço, histórico ou " +
-  "fundamentos, em vez de inventar números ou tentar outras ferramentas. " +
-  "Responda em português, direto, com os dados retornados pelas tools.";
+function buildSystemPrompt(): string {
+  const today = new Date().toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return (
+    `Hoje é ${today}. Você é um assistente de análise de ações de big techs. ` +
+    "Tickers suportados pelas ferramentas: AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA. " +
+    "As únicas ferramentas disponíveis são bigtech-market_getQuote, bigtech-market_getHistory " +
+    "e bigtech-market_getOverview — use-as sempre que precisar de preço, histórico ou " +
+    "fundamentos, em vez de inventar números ou tentar outras ferramentas. " +
+    "Se perguntarem sobre empresa sem capital aberto (ex: OpenAI, Anthropic), responda em texto " +
+    "que ela não é listada em bolsa e portanto não tem preço de ação ou P/E público — não chame tool. " +
+    "Se perguntarem sobre ticker listado fora da lista suportada, diga que este dashboard cobre só as big techs acima. " +
+    "Responda SEMPRE e somente em português (nunca use caracteres chineses), direto, com os dados retornados pelas tools."
+  );
+}
 
 interface RunResult {
   events: ChatEvent[];
@@ -197,7 +215,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
       } else if (parsed.type === "text" && parsed.part && "text" in parsed.part) {
         const textPart = parsed.part as OpencodeTextPart;
         if (textPart.text) {
-          if (LEAK_PATTERN.test(textPart.text)) leaked = true;
+          if (LEAK_PATTERN.test(textPart.text) || CJK_PATTERN.test(textPart.text)) leaked = true;
           events.push({ type: "delta", data: textPart.text });
         }
       }
@@ -219,13 +237,16 @@ async function runOnce(prompt: string): Promise<RunResult> {
       const hasDelta = events.some((e) => e.type === "delta");
       const refused = !hasToolCall && events.some((e) => e.type === "delta" && REFUSAL_PATTERN.test(e.data));
 
-      // Processo fechou com tool_call mas sem texto: run --attach saiu cedo
-      // demais (ver comentário em pollSessionForText). Busca a resposta que
-      // continuou terminando de gerar no servidor antes de desistir.
-      if (!error && hasToolCall && !hasDelta && sessionID) {
+      // Processo fechou sem texto: run --attach saiu cedo demais (ver
+      // comentário em pollSessionForText). Vale COM tool_call (resposta pós
+      // tool ainda gerando) e SEM tool_call (resposta texto-puro ainda
+      // gerando — ex: pergunta sobre empresa privada, modelo responde sem
+      // chamar tool; visto em teste real 2026-08-06 travando o frontend
+      // no "..."). Busca a resposta no servidor antes de desistir.
+      if (!error && !hasDelta && sessionID) {
         const texts = await pollSessionForText(sessionID);
         for (const text of texts) {
-          if (LEAK_PATTERN.test(text)) leaked = true;
+          if (LEAK_PATTERN.test(text) || CJK_PATTERN.test(text)) leaked = true;
           events.push({ type: "delta", data: text });
         }
       }
@@ -241,13 +262,16 @@ async function runOnce(prompt: string): Promise<RunResult> {
 // blocos de texto inteiros) pra poder re-tentar em caso de vazamento antes
 // de expor qualquer coisa pro cliente.
 export async function* streamChat(userMessage: string): AsyncGenerator<ChatEvent> {
-  const prompt = `${SYSTEM_PROMPT}\n\nPergunta do usuário: ${userMessage}`;
+  const prompt = `${buildSystemPrompt()}\n\nPergunta do usuário: ${userMessage}`;
 
   let result: RunResult | null = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     result = await runOnce(prompt);
     if (result.error) break;
-    if (!result.leaked) break;
+    // Sem nenhum texto mesmo depois do poll fallback = tentativa perdida
+    // (modelo terminou sem gerar resposta) — re-tenta igual a leak.
+    const hasText = result.events.some((e) => e.type === "delta");
+    if (!result.leaked && hasText) break;
   }
 
   if (!result) return;
@@ -265,6 +289,14 @@ export async function* streamChat(userMessage: string): AsyncGenerator<ChatEvent
     yield {
       type: "error",
       data: "Modelo grátis instável nessa resposta (formato de tool call inválido). Tenta de novo.",
+    };
+    return;
+  }
+
+  if (!result.events.some((e) => e.type === "delta")) {
+    yield {
+      type: "error",
+      data: "O modelo não gerou resposta desta vez. Tenta de novo.",
     };
     return;
   }
