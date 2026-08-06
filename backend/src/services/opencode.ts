@@ -4,8 +4,10 @@ import { getHistory, getOverview, getQuote } from "./market";
 // OpenCode Zen expõe endpoint OpenAI-compatible (deepseek-v4-flash-free, sem
 // limite de tool calling que a NIM impôs) — reusa o SDK oficial da OpenAI
 // trocando apenas baseURL + key. Auth: opencode.ai/auth (grátis, sem cartão).
+// Fallback dummy evita crash no boot quando OPENCODE_API_KEY não está setada —
+// endpoints de mercado seguem funcionando, só /api/chat falha na hora do uso.
 const zen = new OpenAI({
-  apiKey: process.env.OPENCODE_API_KEY,
+  apiKey: process.env.OPENCODE_API_KEY ?? "unset",
   baseURL: "https://opencode.ai/zen/v1",
 });
 
