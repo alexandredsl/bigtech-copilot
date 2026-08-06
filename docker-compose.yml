@@ -1,6 +1,9 @@
 services:
   bigtech-copilot:
-    build: .
+    build:
+      context: .
+      network: host
+    image: bigtech-copilot:latest
     container_name: bigtech-copilot
     restart: unless-stopped
     ports:
