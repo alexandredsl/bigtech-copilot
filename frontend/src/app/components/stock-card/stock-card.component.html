@@ -40,5 +40,7 @@
         <strong>{{ overview?.fiftyTwoWeekLow | number: '1.0-0' }} / {{ overview?.fiftyTwoWeekHigh | number: '1.0-0' }}</strong>
       </div>
     </div>
+
+    <div class="source-line">{{ quote?.source }} · {{ quote?.asOf | date: 'HH:mm' }}</div>
   }
 </p-card>

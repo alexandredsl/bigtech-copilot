@@ -17,8 +17,22 @@
             <span class="dots"><i></i><i></i><i></i></span>
             <span class="stage">{{ stage }}… {{ elapsedSeconds }}s</span>
           </div>
+          @if (turn.reasoning) {
+            <div class="reasoning live">{{ turn.reasoning }}</div>
+          }
         } @else if (turn.role === 'assistant') {
+          @if (turn.reasoning) {
+            <button class="reasoning-toggle" (click)="turn.reasoningOpen = !turn.reasoningOpen">
+              💭 {{ turn.reasoningOpen ? 'esconder raciocínio' : 'ver raciocínio' }}
+            </button>
+            @if (turn.reasoningOpen) {
+              <div class="reasoning">{{ turn.reasoning }}</div>
+            }
+          }
           <div class="md-body" [innerHTML]="turn.text | markdown"></div>
+          @if (turn.toolCalls.length) {
+            <div class="source-line">Fonte: Yahoo Finance (atraso de até 15 min · cache 10 min)</div>
+          }
         } @else {
           <p>{{ turn.text }}</p>
         }

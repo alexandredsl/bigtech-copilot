@@ -47,6 +47,7 @@ export async function getQuote(ticker: string) {
       volume: q.regularMarketVolume,
       currency: q.currency,
       marketState: q.marketState,
+      source: "Yahoo Finance",
       asOf: new Date().toISOString(),
     };
   });
@@ -61,6 +62,8 @@ export async function getHistory(ticker: string, range: string = "1y") {
     return {
       symbol,
       range,
+      source: "Yahoo Finance",
+      asOf: new Date().toISOString(),
       points: (result.quotes ?? []).map((p: ChartPoint) => ({
         date: p.date,
         close: p.close,
@@ -79,6 +82,8 @@ export async function getOverview(ticker: string) {
     });
     return {
       symbol,
+      source: "Yahoo Finance",
+      asOf: new Date().toISOString(),
       marketCap: result.price?.marketCap,
       peRatio: result.summaryDetail?.trailingPE,
       forwardPE: result.summaryDetail?.forwardPE,

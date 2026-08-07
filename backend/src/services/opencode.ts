@@ -96,7 +96,7 @@ function ensureServer(): Promise<void> {
 }
 
 export interface ChatEvent {
-  type: "tool_call" | "delta" | "done" | "error";
+  type: "tool_call" | "delta" | "reasoning" | "done" | "error";
   data: string;
 }
 
@@ -156,6 +156,110 @@ interface RunResult {
   error: (Error & NodeJS.ErrnoException) | null;
 }
 
+// `opencode run --format json` NÃO emite as partes de reasoning no stdout —
+// mas o `opencode serve` persistente expõe um bus SSE global (GET /event) com
+// `message.part.delta` token a token, incluindo reasoning (confirmado
+// 2026-08-07 com mimo-v2.5-free: 51 tokens de reasoning por resposta).
+// Tap: assina o bus durante o run e repassa só os deltas de reasoning da
+// nossa sessão — feedback imediato pro usuário enquanto a resposta final
+// (essa sim validada contra leak antes de expor) ainda está sendo gerada.
+//
+// Deltas chegam com partID mas o tipo da parte (reasoning vs text vs tool) só
+// é conhecido via `message.part.updated` — que pode chegar depois do primeiro
+// delta. E o sessionID do nosso run só é conhecido quando o stdout emite o
+// primeiro evento. Por isso o buffer `pending`: segura delta até saber tipo da
+// parte E sessão; descarta o que for de outra sessão ou de parte text/tool
+// (texto final segue o caminho bufferizado com detecção de leak).
+interface ReasoningTap {
+  setSession(id: string): void;
+  close(): void;
+}
+
+function tapReasoning(onDelta: (text: string) => void): ReasoningTap {
+  const controller = new AbortController();
+  const partTypes = new Map<string, string>();
+  const pending: { sessionID: string; partID: string; delta: string }[] = [];
+  let session: string | null = null;
+
+  const flush = () => {
+    if (!session) return;
+    for (let i = 0; i < pending.length; ) {
+      const item = pending[i];
+      const type = partTypes.get(item.partID);
+      if (item.sessionID !== session || (type && type !== "reasoning")) {
+        pending.splice(i, 1);
+      } else if (type === "reasoning") {
+        pending.splice(i, 1);
+        // Reasoning é display-only (não passa pelo retry de leak) — filtra
+        // CJK aqui mesmo pra não vazar chinês do mimo na tela.
+        if (!CJK_PATTERN.test(item.delta)) onDelta(item.delta);
+      } else {
+        i++;
+      }
+    }
+  };
+
+  (async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/event`, { signal: controller.signal });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          let ev: {
+            type?: string;
+            properties?: {
+              part?: { id?: string; type?: string };
+              sessionID?: string;
+              partID?: string;
+              delta?: unknown;
+            };
+          };
+          try {
+            ev = JSON.parse(line.slice(5));
+          } catch {
+            continue;
+          }
+          if (ev.type === "message.part.updated") {
+            const part = ev.properties?.part;
+            if (part?.id && part.type) {
+              partTypes.set(part.id, part.type);
+              flush();
+            }
+          } else if (ev.type === "message.part.delta") {
+            const p = ev.properties;
+            if (p?.partID && p.sessionID && typeof p.delta === "string") {
+              pending.push({ sessionID: p.sessionID, partID: p.partID, delta: p.delta });
+              if (pending.length > 400) pending.shift();
+              flush();
+            }
+          }
+        }
+      }
+    } catch {
+      // Abort no fim do run, ou serve caiu — reasoning é opcional, segue sem.
+    }
+  })();
+
+  return {
+    setSession(id: string) {
+      session = id;
+      flush();
+    },
+    close() {
+      controller.abort();
+    },
+  };
+}
+
 // Achado 2026-08-06: `opencode run --attach` sai (exit 0) assim que o
 // próximo step (pós tool-call) começa no servidor, sem esperar a resposta
 // de texto terminar de gerar — o stdout do processo local fecha antes do
@@ -192,12 +296,13 @@ async function pollSessionForText(sessionID: string): Promise<string[]> {
 // Uma execução completa do opencode CLI, com todos os eventos coletados
 // (não emitidos ainda) pra permitir detectar vazamento e re-tentar antes
 // de expor qualquer coisa pro cliente.
-async function runOnce(prompt: string): Promise<RunResult> {
+async function runOnce(prompt: string, onReasoning?: (text: string) => void): Promise<RunResult> {
   try {
     await ensureServer();
   } catch (err) {
     return { events: [], leaked: false, error: err as Error & NodeJS.ErrnoException };
   }
+  const tap = onReasoning ? tapReasoning(onReasoning) : null;
   return new Promise((resolvePromise) => {
     const child = spawn(
       "opencode",
@@ -224,7 +329,10 @@ async function runOnce(prompt: string): Promise<RunResult> {
       } catch {
         return;
       }
-      if (parsed.sessionID) sessionID = parsed.sessionID;
+      if (parsed.sessionID && !sessionID) {
+        sessionID = parsed.sessionID;
+        tap?.setSession(sessionID);
+      }
       if (parsed.type === "tool_use" && parsed.part && "tool" in parsed.part) {
         const toolPart = parsed.part as OpencodeToolPart;
         const shortName = toolPart.tool.replace(/^bigtech-market_/, "");
@@ -243,6 +351,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
 
     child.on("error", (err) => {
       clearTimeout(timeout);
+      tap?.close();
       resolvePromise({ events, leaked, error: err as Error & NodeJS.ErrnoException });
     });
 
@@ -264,6 +373,8 @@ async function runOnce(prompt: string): Promise<RunResult> {
       // chamar tool; visto em teste real 2026-08-06 travando o frontend
       // no "..."). Busca a resposta no servidor antes de desistir.
       if (!error && !hasDelta && sessionID) {
+        // Tap fica aberto durante o poll: a resposta (e o reasoning dela)
+        // ainda pode estar sendo gerada no servidor após o exit do child.
         const texts = await pollSessionForText(sessionID);
         for (const text of texts) {
           if (LEAK_PATTERN.test(text) || CJK_PATTERN.test(text)) leaked = true;
@@ -271,6 +382,7 @@ async function runOnce(prompt: string): Promise<RunResult> {
         }
       }
 
+      tap?.close();
       resolvePromise({ events, leaked: leaked || refused, error });
     });
   });
@@ -284,16 +396,49 @@ async function runOnce(prompt: string): Promise<RunResult> {
 export async function* streamChat(userMessage: string): AsyncGenerator<ChatEvent> {
   const prompt = `${buildSystemPrompt()}\n\nPergunta do usuário: ${userMessage}`;
 
-  let result: RunResult | null = null;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    result = await runOnce(prompt);
-    if (result.error) break;
-    // Sem nenhum texto mesmo depois do poll fallback = tentativa perdida
-    // (modelo terminou sem gerar resposta) — re-tenta igual a leak.
-    const hasText = result.events.some((e) => e.type === "delta");
-    if (!result.leaked && hasText) break;
+  // Fila assíncrona: eventos "reasoning" chegam ao vivo (via tap no bus do
+  // serve) ENQUANTO o run roda — o generator os repassa imediatamente pro
+  // cliente ter feedback rápido, sem abrir mão do buffer+retry do texto final.
+  const state: {
+    queue: ChatEvent[];
+    wake: (() => void) | null;
+    final: RunResult | null;
+    finished: boolean;
+  } = { queue: [], wake: null, final: null, finished: false };
+
+  const push = (ev: ChatEvent) => {
+    state.queue.push(ev);
+    state.wake?.();
+    state.wake = null;
+  };
+
+  (async () => {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (attempt > 1) push({ type: "reasoning", data: "\n⟲ resposta instável, tentando de novo…\n" });
+      const result = await runOnce(prompt, (text) => push({ type: "reasoning", data: text }));
+      state.final = result;
+      if (result.error) break;
+      // Sem nenhum texto mesmo depois do poll fallback = tentativa perdida
+      // (modelo terminou sem gerar resposta) — re-tenta igual a leak.
+      const hasText = result.events.some((e) => e.type === "delta");
+      if (!result.leaked && hasText) break;
+    }
+    state.finished = true;
+    state.wake?.();
+    state.wake = null;
+  })();
+
+  while (!state.finished || state.queue.length > 0) {
+    if (state.queue.length > 0) {
+      yield state.queue.shift() as ChatEvent;
+      continue;
+    }
+    await new Promise<void>((r) => {
+      state.wake = r;
+    });
   }
 
+  const result = state.final;
   if (!result) return;
 
   if (result.error) {

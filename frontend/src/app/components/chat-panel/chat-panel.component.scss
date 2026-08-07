@@ -170,3 +170,47 @@ h4 {
     flex: 1;
   }
 }
+
+.reasoning {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  background: #14161b;
+  border-left: 2px solid #3b4252;
+  border-radius: 0.35rem;
+  color: #8a919c;
+  font-size: 0.78rem;
+  font-style: italic;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow-y: auto;
+
+  &.live {
+    animation: reasoning-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes reasoning-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.55; }
+}
+
+.reasoning-toggle {
+  background: none;
+  border: none;
+  color: #9aa0a6;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0 0 0.25rem 0;
+
+  &:hover {
+    color: #c6cad1;
+  }
+}
+
+.source-line {
+  margin-top: 0.5rem;
+  color: #6f7680;
+  font-size: 0.72rem;
+  border-top: 1px solid #262a32;
+  padding-top: 0.35rem;
+}

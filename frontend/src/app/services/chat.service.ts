@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
 export interface ChatStreamEvent {
-  type: 'tool_call' | 'delta' | 'done' | 'error';
+  type: 'tool_call' | 'delta' | 'reasoning' | 'done' | 'error';
   data: string;
 }
 

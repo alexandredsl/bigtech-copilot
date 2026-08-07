@@ -11,6 +11,8 @@ interface ChatTurn {
   role: 'user' | 'assistant';
   text: string;
   toolCalls: string[];
+  reasoning: string;
+  reasoningOpen?: boolean;
   pending?: boolean;
 }
 
@@ -39,8 +41,8 @@ export class ChatPanelComponent implements OnDestroy {
     const message = this.input.trim();
     if (!message || this.sending) return;
 
-    this.turns.push({ role: 'user', text: message, toolCalls: [] });
-    const assistantTurn: ChatTurn = { role: 'assistant', text: '', toolCalls: [], pending: true };
+    this.turns.push({ role: 'user', text: message, toolCalls: [], reasoning: '' });
+    const assistantTurn: ChatTurn = { role: 'assistant', text: '', toolCalls: [], reasoning: '', pending: true };
     this.turns.push(assistantTurn);
 
     this.input = '';
@@ -54,6 +56,9 @@ export class ChatPanelComponent implements OnDestroy {
           assistantTurn.toolCalls.push(event.data);
           const toolName = event.data.split('(')[0];
           this.stage = `consultando ${toolName}`;
+        } else if (event.type === 'reasoning') {
+          assistantTurn.reasoning += event.data;
+          this.stage = 'raciocinando';
         } else if (event.type === 'delta') {
           assistantTurn.text += event.data;
           assistantTurn.pending = false;

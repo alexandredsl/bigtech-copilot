@@ -11,11 +11,14 @@ export interface Quote {
   volume: number | null;
   currency: string | null;
   marketState: string | null;
+  source: string;
   asOf: string;
 }
 
 export interface Overview {
   symbol: Ticker;
+  source: string;
+  asOf: string;
   marketCap: number | null;
   peRatio: number | null;
   forwardPE: number | null;
