@@ -42,4 +42,18 @@ export class StockCardComponent implements OnInit {
   get isUp(): boolean {
     return (this.quote?.change ?? 0) >= 0;
   }
+
+  private static readonly MARKET_STATE_LABELS: Record<string, string> = {
+    PRE: 'Pré-mercado',
+    REGULAR: 'Mercado aberto',
+    POST: 'Pós-mercado',
+    POSTPOST: 'Pós-mercado',
+    CLOSED: 'Fechado'
+  };
+
+  get marketStateLabel(): string {
+    const state = this.quote?.marketState;
+    if (!state) return '—';
+    return StockCardComponent.MARKET_STATE_LABELS[state] ?? state;
+  }
 }
