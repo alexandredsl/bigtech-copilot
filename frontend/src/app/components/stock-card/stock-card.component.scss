@@ -37,6 +37,10 @@
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   background: #2a2d33;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: center;
+  min-width: 4.5rem;
 
   &.up {
     color: #22c55e;
