@@ -22,7 +22,11 @@ const PROJECT_ROOT = path.resolve(__dirname, "../../..");
 // uma vez, fica quente) e cada `opencode run` usa `--attach` nele em vez de
 // sessão fresca. Testado: 5/5 limpo com --attach vs. falha quase total sem.
 const DEFAULT_MODEL = process.env.OPENCODE_MODEL || "opencode/mimo-v2.5-free";
-const RUN_TIMEOUT_MS = 60_000;
+// 60s matava run legítimo: com o serve compartilhado e duas perguntas ao mesmo
+// tempo, um run com tool call passou de 90s e voltou como "código null" pro
+// usuário (medido 2026-08-18). 120s cobre o pior caso observado sem prender o
+// cliente pra sempre — o frontend ainda tem botão de parar.
+const RUN_TIMEOUT_MS = 120_000;
 const MAX_ATTEMPTS = 3;
 const LEAK_PATTERN = /｜｜|<\|.*tool_call|invoke name=|<tool_call>|<function=/i;
 // mimo-v2.5 (Xiaomi) ocasionalmente troca de idioma no meio da resposta e
@@ -147,6 +151,36 @@ function buildSystemPrompt(): string {
     "que ela não é listada em bolsa e portanto não tem preço de ação ou P/E público — não chame tool. " +
     "Se perguntarem sobre ticker listado fora da lista suportada, diga que este dashboard cobre só as big techs acima. " +
     "Responda SEMPRE e somente em português (nunca use caracteres chineses), direto, com os dados retornados pelas tools."
+  );
+}
+
+export interface HistoryTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+// Cada `opencode run` é uma sessão nova, então o multi-turno vive no prompt:
+// os últimos turnos entram como contexto para "e a Microsoft?" fazer sentido.
+// Dado vindo do browser é não confiável — corta formato, quantidade e tamanho.
+function buildHistoryBlock(history: unknown): string {
+  if (!Array.isArray(history)) return "";
+  const turns = history
+    .filter(
+      (t): t is HistoryTurn =>
+        !!t &&
+        typeof t === "object" &&
+        ((t as HistoryTurn).role === "user" || (t as HistoryTurn).role === "assistant") &&
+        typeof (t as HistoryTurn).text === "string" &&
+        (t as HistoryTurn).text.trim().length > 0,
+    )
+    .slice(-6)
+    .map((t) => `${t.role === "user" ? "Usuário" : "Você"}: ${t.text.trim().slice(0, 1200)}`);
+
+  if (!turns.length) return "";
+  return (
+    "\n\nConversa até agora (contexto; os números abaixo podem estar desatualizados — " +
+    "consulte as tools de novo se precisar deles):\n" +
+    turns.join("\n")
   );
 }
 
@@ -393,8 +427,11 @@ async function runOnce(prompt: string, onReasoning?: (text: string) => void): Pr
 // Buffera a execução (não streama token a token — o CLI já entrega os
 // blocos de texto inteiros) pra poder re-tentar em caso de vazamento antes
 // de expor qualquer coisa pro cliente.
-export async function* streamChat(userMessage: string): AsyncGenerator<ChatEvent> {
-  const prompt = `${buildSystemPrompt()}\n\nPergunta do usuário: ${userMessage}`;
+export async function* streamChat(
+  userMessage: string,
+  history: unknown = [],
+): AsyncGenerator<ChatEvent> {
+  const prompt = `${buildSystemPrompt()}${buildHistoryBlock(history)}\n\nPergunta do usuário: ${userMessage}`;
 
   // Fila assíncrona: eventos "reasoning" chegam ao vivo (via tap no bus do
   // serve) ENQUANTO o run roda — o generator os repassa imediatamente pro

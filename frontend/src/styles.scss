@@ -1,5 +1,54 @@
 @import "primeicons/primeicons.css";
 
+/* ---------------------------------------------------------------------------
+   Design tokens — painel de instrumentos: fundo quase preto, hairlines em vez
+   de sombras, números em tabular para as colunas não dançarem a cada tick.
+   --------------------------------------------------------------------------- */
+:root {
+  --bg: #0b0c0e;
+  --bg-grid: #101216;
+  --surface: #121417;
+  --surface-2: #171a1f;
+  --surface-3: #1d2126;
+  --line: #23272d;
+  --line-strong: #333941;
+
+  --text: #e9ebee;
+  --text-2: #a7aeb9;
+  --text-3: #7d848f;
+
+  --up: #3ddc97;
+  --up-dim: #1c3a2f;
+  --down: #ff6b6b;
+  --down-dim: #3d2323;
+  --accent: #7aa2ff;
+  --accent-dim: #1b2740;
+  --warn: #f5c451;
+
+  --aapl: #7aa2ff;
+  --msft: #3ddc97;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.75), 0 2px 6px -2px rgba(0, 0, 0, 0.6);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 420ms;
+
+  --rail-w: 400px;
+  --topbar-h: 56px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -8,12 +57,130 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  background: #0f1115;
-  color: #e6e6e6;
+  min-height: 100%;
+}
+
+body {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 520px at 78% -10%, rgba(122, 162, 255, 0.07), transparent 60%),
+    linear-gradient(180deg, var(--bg-grid) 0%, var(--bg) 46%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv05" 1;
+  letter-spacing: -0.01em;
+}
+
+.mono {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+/* Foco visível e consistente — a UI inteira é operável por teclado. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+::selection {
+  background: rgba(122, 162, 255, 0.28);
+}
+
+/* Scrollbars finas, no tom da superfície. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #444b55;
+  background-clip: padding-box;
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--sp-3);
+  top: -100px;
+  z-index: 100;
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-3);
+  transition: top 160ms var(--ease-out);
+
+  &:focus {
+    top: var(--sp-3);
+  }
+}
+
+/* Superfície-base de todo painel: hairline + preenchimento, sem card empilhado. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skeletons: mesma caixa do conteúdo real, para não haver salto no layout. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--r-sm);
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
