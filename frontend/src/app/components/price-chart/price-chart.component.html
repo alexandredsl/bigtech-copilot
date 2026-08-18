@@ -1,12 +1,55 @@
-<p-card styleClass="chart-card">
-  <h4>{{ ticker }} — histórico 1 ano</h4>
-  @if (loading) {
-    <span class="muted">Carregando gráfico…</span>
-  } @else if (error) {
-    <span class="error">{{ error }}</span>
+<section class="chart panel" [style.--tint]="meta().color">
+  <header class="head">
+    <div class="title">
+      <h2>{{ ticker }} <span class="company">{{ meta().name }}</span></h2>
+      <span class="sub">Fechamento diário · {{ rangeLabel() }}</span>
+    </div>
+
+    @if (delta(); as d) {
+      <div class="delta" [class.up]="isUp()" [class.down]="!isUp()">
+        <span class="num pct">{{ percent(d.pct) }}</span>
+        <span class="num abs">{{ money(d.first) }} → {{ money(d.last) }}</span>
+      </div>
+    }
+
+    <div class="range-switch" role="group" [attr.aria-label]="'Período do gráfico de ' + ticker">
+      @for (r of ranges; track r.value) {
+        <button
+          type="button"
+          [class.active]="range() === r.value"
+          [attr.aria-pressed]="range() === r.value"
+          [attr.title]="r.full"
+          (click)="setRange(r.value)"
+        >
+          {{ r.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="chart-wrap">
+      <div class="skeleton" style="width: 100%; height: 100%"></div>
+    </div>
+    <span class="sr-only">Carregando histórico de {{ ticker }}</span>
+  } @else if (error()) {
+    <div class="chart-wrap failure">
+      <p>{{ error() }}</p>
+      <button type="button" class="retry" (click)="load()">
+        <i class="pi pi-replay" aria-hidden="true"></i> Tentar de novo
+      </button>
+    </div>
   } @else {
     <div class="chart-wrap">
       <canvas baseChart [data]="chartData" [options]="chartOptions" type="line"></canvas>
     </div>
+
+    @if (extremes(); as e) {
+      <footer class="extremes">
+        <span>Mín. no período <strong class="num">{{ money(e.min) }}</strong></span>
+        <span>Máx. no período <strong class="num">{{ money(e.max) }}</strong></span>
+        <span class="count num">{{ points().length }} pregões</span>
+      </footer>
+    }
   }
-</p-card>
+</section>

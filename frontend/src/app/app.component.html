@@ -1,34 +1,62 @@
-<main>
-  <header>
-    <h1>bigtech-copilot</h1>
-    <p class="muted">Dashboard de big techs com copiloto de IA ancorado em dado real via function calling (MCP + OpenCode)</p>
-  </header>
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
 
-  <section class="cards-row">
-    @for (t of tickers; track t) {
-      <app-stock-card [ticker]="t" />
-    }
-  </section>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="wordmark">bigtech<span class="dot">·</span>copilot</span>
+  </div>
 
-  <section class="chart-section">
-    <div class="chart-controls">
-      <p-selectButton
-        [options]="tickerOptions"
-        [(ngModel)]="chartTicker"
-        optionLabel="label"
-        optionValue="value"
-        [allowEmpty]="false"
-      />
-    </div>
-    <app-price-chart [ticker]="chartTicker" />
-  </section>
+  <div class="session" [class.live]="live()" [class.failed]="syncFailed()">
+    <span class="pulse" aria-hidden="true"></span>
+    <span>{{ syncFailed() ? 'Sem conexão com o mercado' : stateLabel() }}</span>
+    <span class="sep" aria-hidden="true">/</span>
+    <span class="num">{{ syncFailed() ? 'dado congelado' : agoLabel() }}</span>
+  </div>
 
-  <section class="chat-row">
-    <app-chat-panel />
-  </section>
+  <button type="button" class="ghost-btn" (click)="refresh()">
+    <i class="pi pi-refresh" aria-hidden="true"></i>
+    <span class="btn-label">Atualizar</span>
+    <kbd>R</kbd>
+  </button>
+</header>
 
-  <footer class="muted">
-    Dados de mercado: Yahoo Finance (atraso de até 15 min, cache de 10 min no servidor) ·
-    IA: OpenCode Zen (modelo grátis) via MCP local — sem aconselhamento financeiro
-  </footer>
-</main>
+<div class="shell">
+  <main id="conteudo" class="content">
+    <section class="intro">
+      <h1>Sete big techs, e um copiloto que não chuta número.</h1>
+      <p>
+        Cada resposta passa por uma chamada real de ferramenta — <code class="mono">getQuote</code>,
+        <code class="mono">getHistory</code> ou <code class="mono">getOverview</code>, servidas por um
+        MCP local contra o dado de mercado. Você vê a chamada acontecer antes de ler o texto.
+      </p>
+    </section>
+
+    <section class="watchlist" aria-label="Cotações">
+      @for (t of tickers; track t) {
+        <app-stock-card
+          [ticker]="t"
+          [selected]="chartTicker() === t"
+          (select)="selectTicker($event)"
+        />
+      }
+    </section>
+
+    <app-price-chart [ticker]="chartTicker()" />
+
+    <footer class="foot">
+      <span>Dados: Yahoo Finance — atraso de até 15 min, cache de 10 min no servidor.</span>
+      <span>IA: OpenCode Zen (modelo grátis) via MCP local. Não é recomendação de investimento.</span>
+    </footer>
+  </main>
+
+  <aside class="rail" [class.open]="chatOpen()" aria-label="Copiloto">
+    <app-chat-panel (close)="chatOpen.set(false)" />
+  </aside>
+</div>
+
+@if (!chatOpen()) {
+  <button type="button" class="chat-fab" (click)="chatOpen.set(true)" aria-expanded="false">
+    <i class="pi pi-comments" aria-hidden="true"></i>
+    <span>Perguntar ao copiloto</span>
+  </button>
+}

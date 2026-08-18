@@ -1,53 +1,120 @@
-<p-card styleClass="chat-card">
-  <h4>Pergunte sobre big techs (AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA)</h4>
-  <span class="muted">Respostas ancoradas em dado real via function calling — não alucinado.</span>
+<section class="copilot panel">
+  <header class="head">
+    <div class="title">
+      <h2>Copiloto</h2>
+      <span class="sub">Só responde com dado buscado na hora</span>
+    </div>
+    <div class="head-actions">
+      @if (turns.length) {
+        <button type="button" class="icon-btn" (click)="clear()" title="Limpar conversa" aria-label="Limpar conversa">
+          <i class="pi pi-eraser" aria-hidden="true"></i>
+        </button>
+      }
+      <button type="button" class="icon-btn only-mobile" (click)="close.emit()" title="Fechar" aria-label="Fechar copiloto">
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
 
-  <div class="turns">
-    @for (turn of turns; track $index) {
-      <div class="turn" [class.user]="turn.role === 'user'">
-        @if (turn.toolCalls.length) {
-          <div class="tool-calls">
-            @for (call of turn.toolCalls; track call) {
-              <span class="tool-badge">⚙ {{ call }}</span>
-            }
-          </div>
-        }
-        @if (turn.role === 'assistant' && turn.pending) {
-          <div class="pending">
-            <span class="dots"><i></i><i></i><i></i></span>
-            <span class="stage">{{ stage }}… {{ elapsedSeconds }}s</span>
-          </div>
-          @if (turn.reasoning) {
-            <div class="reasoning live">{{ turn.reasoning }}</div>
+  <div class="scroller" #scroller (scroll)="onScroll()" aria-live="polite">
+    @if (!turns.length) {
+      <div class="empty">
+        <p class="lede">
+          Pergunte em português sobre AAPL, MSFT, GOOGL, AMZN, META, NVDA ou TSLA. O modelo escolhe a
+          ferramenta, busca o número no mercado e só então escreve — a chamada aparece aqui antes do texto.
+        </p>
+        <span class="empty-label">Comece por</span>
+        <div class="chips">
+          @for (s of suggestions; track s) {
+            <button type="button" class="chip" (click)="ask(s)">{{ s }}</button>
           }
-        } @else if (turn.role === 'assistant') {
-          @if (turn.reasoning) {
-            <button class="reasoning-toggle" (click)="turn.reasoningOpen = !turn.reasoningOpen">
-              💭 {{ turn.reasoningOpen ? 'esconder raciocínio' : 'ver raciocínio' }}
-            </button>
-            @if (turn.reasoningOpen) {
-              <div class="reasoning">{{ turn.reasoning }}</div>
-            }
-          }
-          <div class="md-body" [innerHTML]="turn.text | markdown"></div>
-          @if (turn.toolCalls.length) {
-            <div class="source-line">Fonte: Yahoo Finance (atraso de até 15 min · cache 10 min)</div>
-          }
-        } @else {
-          <p>{{ turn.text }}</p>
-        }
+        </div>
       </div>
+    }
+
+    @for (turn of turns; track $index) {
+      @if (turn.role === 'user') {
+        <div class="turn user">
+          <p>{{ turn.text }}</p>
+        </div>
+      } @else {
+        <div class="turn assistant" [class.failed]="turn.failed">
+          @if (turn.tools.length) {
+            <ol class="tools">
+              @for (tool of turn.tools; track $index) {
+                <li class="tool">
+                  <i class="pi pi-check" aria-hidden="true"></i>
+                  <span class="tool-body">
+                    <span class="tool-name mono">{{ tool.name }}</span>
+                    <span class="tool-desc">{{ toolLabel(tool.name) }}<span *ngIf="tool.args"> · {{ tool.args }}</span></span>
+                  </span>
+                </li>
+              }
+            </ol>
+          }
+
+          @if (turn.pending) {
+            <div class="pending">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="stage">{{ stage }}… <span class="num">{{ elapsedSeconds }}s</span></span>
+              @if (sending) {
+                <button type="button" class="stop-inline" (click)="stop()">parar</button>
+              }
+            </div>
+            @if (turn.reasoning) {
+              <div class="reasoning live">{{ turn.reasoning }}</div>
+            }
+          } @else {
+            @if (turn.reasoning) {
+              <button type="button" class="reasoning-toggle" (click)="turn.reasoningOpen = !turn.reasoningOpen">
+                <i class="pi" [class.pi-chevron-right]="!turn.reasoningOpen" [class.pi-chevron-down]="turn.reasoningOpen" aria-hidden="true"></i>
+                {{ turn.reasoningOpen ? 'esconder raciocínio' : 'ver raciocínio' }}
+              </button>
+              @if (turn.reasoningOpen) {
+                <div class="reasoning">{{ turn.reasoning }}</div>
+              }
+            }
+
+            <div class="md-body" [innerHTML]="turn.text | markdown"></div>
+
+            @if (turn.tools.length) {
+              <div class="source-line">Fonte: Yahoo Finance · atraso de até 15 min · cache de 10 min</div>
+            }
+
+            @if (turn.failed && !sending) {
+              <button type="button" class="retry" (click)="retry()">
+                <i class="pi pi-replay" aria-hidden="true"></i> Perguntar de novo
+              </button>
+            }
+          }
+        </div>
+      }
     }
   </div>
 
-  <div class="input-row">
-    <input
-      pInputText
+  <form class="composer" (submit)="$event.preventDefault(); send()">
+    <textarea
+      id="chat-input"
+      rows="1"
+      name="message"
       [(ngModel)]="input"
-      (keydown.enter)="send()"
-      placeholder="Ex: qual o P/E da Nvidia hoje?"
-      [disabled]="sending"
-    />
-    <p-button label="Enviar" (onClick)="send()" [loading]="sending" [disabled]="!input.trim()" />
-  </div>
-</p-card>
+      (keydown)="onKeydown($event)"
+      placeholder="Ex.: qual o P/L da Nvidia hoje?"
+      aria-label="Pergunta para o copiloto"
+      maxlength="1000"
+    ></textarea>
+
+    <div class="composer-row">
+      <span class="hint"><kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> quebra linha</span>
+      @if (sending) {
+        <button type="button" class="send stop" (click)="stop()">
+          <i class="pi pi-stop-circle" aria-hidden="true"></i> Parar
+        </button>
+      } @else {
+        <button type="submit" class="send" [disabled]="!input.trim()">
+          Enviar <i class="pi pi-arrow-up" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
+  </form>
+</section>

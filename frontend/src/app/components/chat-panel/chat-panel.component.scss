@@ -1,53 +1,334 @@
 :host {
   display: block;
+  height: 100%;
 }
 
-h4 {
-  margin: 0 0 0.25rem 0;
-}
-
-.muted {
-  color: #9aa0a6;
-  font-size: 0.85rem;
-}
-
-.turns {
-  margin-top: 1rem;
+.copilot {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-height: 420px;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* ---- Cabeçalho ---- */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+
+  .title {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-right: auto;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .sub {
+    font-size: 0.75rem;
+    color: var(--text-3);
+  }
+}
+
+.head-actions {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: color 160ms var(--ease-out), background 160ms var(--ease-out);
+
+  &:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+}
+
+/* ---- Conversa ---- */
+.scroller {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+
+  .lede {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text-2);
+    max-width: 46ch;
+  }
+
+  .empty-label {
+    font-size: 0.72rem;
+    color: var(--text-3);
+  }
+}
+
+.chips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: flex-start;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  transition:
+    color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--line-strong);
+    transform: translateX(2px);
+  }
 }
 
 .turn {
-  background: #1a1c22;
-  border-radius: 0.5rem;
-  padding: 0.6rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 
   p {
     margin: 0;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   &.user {
-    background: #16233a;
     align-self: flex-end;
-    max-width: 80%;
+    max-width: 88%;
+    background: var(--accent-dim);
+    border: 1px solid rgba(122, 162, 255, 0.22);
+    border-radius: var(--r-md) var(--r-md) 2px var(--r-md);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.88rem;
+  }
+
+  &.assistant {
+    font-size: 0.9rem;
+    line-height: 1.6;
+
+    .answer {
+      color: var(--text);
+    }
+  }
+
+  &.failed .answer {
+    color: var(--warn);
   }
 }
 
-.md-body {
-  line-height: 1.55;
+/* ---- Linha do tempo das function calls ---- */
+.tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--line);
 }
 
-// ::ng-deep necessário: conteúdo chega via [innerHTML] (markdown renderizado),
-// então os elementos não carregam o atributo de scoping da view encapsulation
-// e seletores escopados normais nunca casariam com eles.
+.tool {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2);
+  font-size: 0.76rem;
+
+  > i {
+    color: var(--up);
+    font-size: 0.62rem;
+  }
+
+  .tool-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .tool-name {
+    color: var(--text);
+    font-size: 0.74rem;
+  }
+
+  .tool-desc {
+    color: var(--text-3);
+    font-size: 0.7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+}
+
+/* Estado "trabalhando": único movimento contínuo da tela. */
+.pending {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 4px;
+
+  i {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    animation: bob 1.2s var(--ease-out) infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.16s;
+    }
+    &:nth-child(3) {
+      animation-delay: 0.32s;
+    }
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.stop-inline {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.74rem;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+/* Raciocínio ao vivo do modelo: leitura secundária, nunca compete com a resposta. */
+.reasoning {
+  padding: 0.5rem 0.65rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 168px;
+  overflow-y: auto;
+
+  &.live {
+    animation: reasoning-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes reasoning-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.reasoning-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.74rem;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  i {
+    font-size: 0.6rem;
+  }
+
+  &:hover {
+    color: var(--text);
+  }
+}
+
+.source-line {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Markdown das respostas: chega por [innerHTML], então precisa de ::ng-deep. */
+.md-body {
+  line-height: 1.6;
+}
+
 .md-body ::ng-deep {
   p {
-    margin: 0 0 0.5rem 0;
-    white-space: normal;
+    margin: 0 0 0.55rem;
 
     &:last-child {
       margin-bottom: 0;
@@ -56,8 +337,8 @@ h4 {
 
   ul,
   ol {
-    margin: 0.25rem 0 0.5rem;
-    padding-left: 1.25rem;
+    margin: 0.3rem 0 0.55rem;
+    padding-left: 1.15rem;
   }
 
   li {
@@ -68,149 +349,161 @@ h4 {
   h2,
   h3,
   h4 {
-    margin: 0.6rem 0 0.35rem;
-    font-size: 1rem;
+    margin: 0.7rem 0 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--accent);
   }
 
   code {
-    background: #23262e;
-    padding: 0.1rem 0.35rem;
-    border-radius: 0.25rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
     font-size: 0.85em;
+    background: var(--surface-3);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
   }
 
   table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
     border-collapse: collapse;
     margin: 0.5rem 0;
-    width: 100%;
-    font-size: 0.88rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
 
   th,
   td {
-    border: 1px solid #2f333b;
-    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--line);
+    padding: 0.3rem 0.55rem;
     text-align: left;
+    white-space: nowrap;
   }
 
   th {
-    background: #23262e;
+    background: var(--surface-2);
     font-weight: 600;
   }
-
-  tr:nth-child(even) td {
-    background: #1e2128;
-  }
 }
 
-.pending {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: #9aa0a6;
-  font-size: 0.85rem;
-}
-
-.dots {
+.retry {
+  align-self: flex-start;
   display: inline-flex;
-  gap: 0.25rem;
-
-  i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #60a5fa;
-    animation: pulse 1.2s infinite ease-in-out;
-
-    &:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    &:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-  }
-}
-
-@keyframes pulse {
-  0%,
-  80%,
-  100% {
-    opacity: 0.25;
-    transform: scale(0.8);
-  }
-
-  40% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.tool-calls {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.4rem;
-}
-
-.tool-badge {
-  font-size: 0.72rem;
-  color: #facc15;
-  background: #2a2410;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-}
-
-.input-row {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.5rem;
-
-  input {
-    flex: 1;
-  }
-}
-
-.reasoning {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.7rem;
-  background: #14161b;
-  border-left: 2px solid #3b4252;
-  border-radius: 0.35rem;
-  color: #8a919c;
-  font-size: 0.78rem;
-  font-style: italic;
-  white-space: pre-wrap;
-  max-height: 160px;
-  overflow-y: auto;
-
-  &.live {
-    animation: reasoning-pulse 1.6s ease-in-out infinite;
-  }
-}
-
-@keyframes reasoning-pulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 0.55; }
-}
-
-.reasoning-toggle {
-  background: none;
-  border: none;
-  color: #9aa0a6;
-  font-size: 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 0.3rem 0.65rem;
   cursor: pointer;
-  padding: 0 0 0.25rem 0;
 
   &:hover {
-    color: #c6cad1;
+    background: var(--surface-3);
   }
 }
 
-.source-line {
-  margin-top: 0.5rem;
-  color: #6f7680;
-  font-size: 0.72rem;
-  border-top: 1px solid #262a32;
-  padding-top: 0.35rem;
+/* ---- Composer ---- */
+.composer {
+  border-top: 1px solid var(--line);
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  background: var(--surface);
+
+  textarea {
+    font: inherit;
+    font-size: 0.88rem;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 0.6rem 0.7rem;
+    resize: none;
+    min-height: 62px;
+    max-height: 160px;
+    transition: border-color 160ms var(--ease-out);
+
+    &::placeholder {
+      color: var(--text-3);
+    }
+
+    &:focus {
+      border-color: var(--line-strong);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--text-3);
+
+  kbd {
+    font-family: inherit;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 3px;
+  }
+}
+
+.send {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #08131f;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  transition: filter 160ms var(--ease-out);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+
+  &:disabled {
+    color: var(--text-3);
+    background: var(--surface-3);
+    cursor: not-allowed;
+  }
+
+  &.stop {
+    color: var(--text);
+    background: var(--surface-3);
+    border: 1px solid var(--line-strong);
+  }
+}
+
+.only-mobile {
+  display: inline-flex;
+}
+
+@media (min-width: 1180px) {
+  .only-mobile {
+    display: none;
+  }
 }
